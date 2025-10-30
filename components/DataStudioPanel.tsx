@@ -83,29 +83,33 @@ const DataTypeConverterContent: React.FC<DataTypeConverterContentProps> = ({ col
     return (
         <>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 my-4">
-                {columns.map(column => (
-                    <div key={column.name} className="flex flex-col gap-2">
-                        <div>
-                            <label htmlFor={`select-type-${column.name}`} className="block text-xs font-medium text-gray-400 mb-1">{column.name} <span className="opacity-70">(is {column.type})</span></label>
-                            <select id={`select-type-${column.name}`} value={strategies[column.name]?.targetType || ''} onChange={(e) => handleStrategyChange(column.name, 'targetType', e.target.value)} disabled={disabled} className="w-full bg-gray-700 border border-gray-600 rounded-md text-sm text-gray-200 focus:ring-indigo-500 focus:border-indigo-500 p-2">
-                                <option value="">Convert to...</option>
-                                {targetTypeOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                            </select>
-                        </div>
-                        {strategies[column.name]?.targetType === 'Numeric' && (
-                             <div>
-                                <label htmlFor={`select-error-${column.name}`} className="block text-xs font-medium text-gray-400 mb-1">If conversion fails</label>
-                                <select id={`select-error-${column.name}`} value={strategies[column.name]?.onError || ''} onChange={(e) => handleStrategyChange(column.name, 'onError', e.target.value)} disabled={disabled} className="w-full bg-gray-700 border border-gray-600 rounded-md text-sm text-gray-200 focus:ring-indigo-500 focus:border-indigo-500 p-2">
-                                    <option value="">Select error handling...</option>
-                                    {errorHandlingOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                {columns.map(column => {
+                    // FIX: Cast strategy to ConversionStrategy to resolve 'unknown' type error.
+                    const strategy = strategies[column.name] as ConversionStrategy | undefined;
+                    return (
+                        <div key={column.name} className="flex flex-col gap-2">
+                            <div>
+                                <label htmlFor={`select-type-${column.name}`} className="block text-xs font-medium text-gray-400 mb-1">{column.name} <span className="opacity-70">(is {column.type})</span></label>
+                                <select id={`select-type-${column.name}`} value={strategy?.targetType || ''} onChange={(e) => handleStrategyChange(column.name, 'targetType', e.target.value)} disabled={disabled} className="w-full bg-gray-700 border border-gray-600 rounded-md text-sm text-gray-200 focus:ring-indigo-500 focus:border-indigo-500 p-2">
+                                    <option value="">Convert to...</option>
+                                    {targetTypeOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                                 </select>
                             </div>
-                        )}
-                    </div>
-                ))}
+                            {strategy?.targetType === 'Numeric' && (
+                                 <div>
+                                    <label htmlFor={`select-error-${column.name}`} className="block text-xs font-medium text-gray-400 mb-1">If conversion fails</label>
+                                    <select id={`select-error-${column.name}`} value={strategy?.onError || ''} onChange={(e) => handleStrategyChange(column.name, 'onError', e.target.value)} disabled={disabled} className="w-full bg-gray-700 border border-gray-600 rounded-md text-sm text-gray-200 focus:ring-indigo-500 focus:border-indigo-500 p-2">
+                                        <option value="">Select error handling...</option>
+                                        {errorHandlingOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                                    </select>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
             </div>
             <div className="text-center">
-                <button onClick={onApply} disabled={disabled || Object.values(strategies).every(s => !s.targetType)} className="px-4 py-2 text-sm font-semibold bg-indigo-600 text-white rounded-md hover:bg-indigo-500 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed">Apply Conversions</button>
+                <button onClick={onApply} disabled={disabled || Object.values(strategies).every(s => !(s as ConversionStrategy).targetType)} className="px-4 py-2 text-sm font-semibold bg-indigo-600 text-white rounded-md hover:bg-indigo-500 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed">Apply Conversions</button>
             </div>
         </>
     );
