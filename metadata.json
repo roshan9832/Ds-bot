@@ -1,0 +1,5 @@
+{
+  "name": "Conversational Data Analysis AI",
+  "description": "An AI agent that reads data from CSVs, performs analysis, generates visualizations, and provides insights in natural language.",
+  "requestFramePermissions": []
+}
