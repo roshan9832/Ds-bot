@@ -1,7 +1,6 @@
-
 import React, { useState } from 'react';
-import { ColumnInfo, ConversionStrategy, DataTool } from '../types';
-import { CleanIcon, TypeConvertIcon, OutlierIcon, WandIcon } from './icons';
+import { ColumnInfo, ConversionStrategy, DataTool, NumericStats, CategoricalStats } from '../types';
+import { CleanIcon, TypeConvertIcon, OutlierIcon, WandIcon, ProfileIcon, CorrelationIcon } from './icons';
 import { Tabs } from './Tabs';
 
 // Props interfaces for sub-panels
@@ -31,7 +30,119 @@ interface GeneralActionsContentProps {
     disabled: boolean;
 }
 
+interface DataProfileContentProps {
+    columns: ColumnInfo[];
+}
+
+interface CorrelationMatrixContentProps {
+    numericColumns: ColumnInfo[];
+    onAction: (action: string) => void;
+    disabled: boolean;
+}
+
+
 // Sub-panel components
+
+const StatCard: React.FC<{ label: string; value: string | number }> = ({ label, value }) => (
+    <div className="bg-gray-700/50 p-2 rounded-md text-center">
+        <p className="text-xs text-gray-400 font-medium">{label}</p>
+        <p className="text-base font-semibold text-gray-100">{value}</p>
+    </div>
+);
+
+const renderStats = (column: ColumnInfo) => {
+    if (column.type === 'Numeric' && column.stats) {
+        const stats = column.stats as NumericStats;
+        return (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3">
+                <StatCard label="Mean" value={stats.mean.toLocaleString()} />
+                <StatCard label="Median" value={stats.median.toLocaleString()} />
+                <StatCard label="Std Dev" value={stats.stdDev.toLocaleString()} />
+                <StatCard label="Min" value={stats.min.toLocaleString()} />
+                <StatCard label="Max" value={stats.max.toLocaleString()} />
+            </div>
+        );
+    }
+    if ((column.type === 'String' || column.type === 'Boolean') && column.stats) {
+        const stats = column.stats as CategoricalStats;
+        const topValues = Object.entries(stats.valueCounts)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 3);
+        
+        const total = Object.values(stats.valueCounts).reduce((sum, count) => sum + count, 0);
+        if (total === 0) return <div className="mt-3"><StatCard label="Unique Values" value={stats.uniqueValues} /></div>;
+
+        return (
+            <div className="mt-3 space-y-3">
+                <StatCard label="Unique Values" value={stats.uniqueValues} />
+                {topValues.length > 0 && (
+                    <div>
+                        <h4 className="text-xs font-medium text-gray-400 mb-2">Top Values</h4>
+                        <div className="space-y-2">
+                            {topValues.map(([value, count]) => (
+                                <div key={value} className="flex items-center text-xs">
+                                    <span className="truncate w-2/5 text-gray-300 pr-2" title={value}>{value.trim() === '' ? '""' : value}</span>
+                                    <div className="w-3/5 bg-gray-600 rounded-full h-4 relative">
+                                        <div 
+                                            className="bg-indigo-500 h-4 rounded-full flex items-center justify-end pr-2" 
+                                            style={{ width: `${(count / total) * 100}%` }}
+                                        >
+                                           <span className="text-white text-[10px] font-bold">{count}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    }
+    return null;
+};
+
+const DataProfileContent: React.FC<DataProfileContentProps> = ({ columns }) => {
+    if (!columns || columns.length === 0) {
+        return <p className="text-center text-sm text-gray-500 py-4">No data to profile.</p>;
+    }
+
+    const totalRows = columns[0]?.totalRows || 0;
+
+    return (
+        <div className="py-4 animate-fade-in">
+            <div className="text-center border-b border-gray-700 pb-4 mb-4">
+                <h3 className="text-lg font-semibold text-white">Dataset Profile</h3>
+                <p className="text-sm text-gray-400">{columns.length} Columns &bull; {totalRows} Rows</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 max-h-[400px] overflow-y-auto pr-2">
+                {columns.map(col => (
+                    <div key={col.name} className="bg-gray-900/50 border border-gray-700 rounded-lg p-3">
+                        <div className="flex justify-between items-center mb-3">
+                            <h3 className="font-semibold text-white truncate text-sm" title={col.name}>{col.name}</h3>
+                            <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                                col.type === 'Numeric' ? 'bg-blue-900 text-blue-300' : 
+                                col.type === 'Boolean' ? 'bg-purple-900 text-purple-300' : 'bg-green-900 text-green-300'
+                            }`}>{col.type}</span>
+                        </div>
+                        
+                        <div className="text-sm">
+                            <div className="flex justify-between items-center bg-gray-700/60 p-2 rounded-md">
+                                <span className="text-gray-400">Missing</span>
+                                <span className={`font-medium ${col.missingCount > 0 ? 'text-yellow-400' : 'text-gray-200'}`}>
+                                    {col.missingCount} ({col.totalRows > 0 ? ((col.missingCount / col.totalRows) * 100).toFixed(1) : 0}%)
+                                </span>
+                            </div>
+                        </div>
+
+                        {renderStats(col)}
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+
 const MissingValuesContent: React.FC<MissingValuesContentProps> = ({ columns, strategies, onStrategyChange, onApply, disabled }) => {
     const getOptionsForType = (type: string) => {
         if (type.includes('Numeric')) {
@@ -143,6 +254,33 @@ const OutlierRemovalContent: React.FC<OutlierRemovalContentProps> = ({ columns, 
     );
 };
 
+const CorrelationMatrixContent: React.FC<CorrelationMatrixContentProps> = ({ numericColumns, onAction, disabled }) => {
+    if (numericColumns.length < 2) {
+        return <p className="text-center text-sm text-gray-500 py-4">You need at least two numeric columns to generate a correlation matrix.</p>;
+    }
+
+    const handleGenerate = () => {
+        onAction('Generate a correlation matrix for all numeric columns in the dataset. Display it as a markdown table.');
+    };
+
+    return (
+        <div className="py-4 text-center animate-fade-in">
+            <h3 className="text-md font-semibold text-white mb-2">Correlation Matrix Analysis</h3>
+            <p className="text-sm text-gray-400 mb-4 max-w-md mx-auto">
+                This will calculate the Pearson correlation coefficient between all pairs of numeric columns. The results will be displayed in a matrix, helping you identify linear relationships in your data.
+            </p>
+            <button
+                onClick={handleGenerate}
+                disabled={disabled}
+                className="px-4 py-2 text-sm font-semibold bg-indigo-600 text-white rounded-md hover:bg-indigo-500 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed"
+            >
+                Generate Correlation Matrix
+            </button>
+        </div>
+    );
+};
+
+
 const GeneralActionsContent: React.FC<GeneralActionsContentProps> = ({ onAction, disabled }) => {
     const cleaningActions = ["Remove duplicate rows"];
     return (
@@ -180,12 +318,14 @@ interface DataStudioPanelProps {
 
 
 export const DataStudioPanel: React.FC<DataStudioPanelProps> = (props) => {
-    const [activeTab, setActiveTab] = useState<DataTool>('missing-values');
+    const [activeTab, setActiveTab] = useState<DataTool>('profile');
 
     const tabs: { id: DataTool; label: string; icon: React.ReactNode; }[] = [
+        { id: 'profile', label: 'Profile', icon: <ProfileIcon className="w-5 h-5" /> },
         { id: 'missing-values', label: 'Missing Values', icon: <CleanIcon className="w-5 h-5" /> },
         { id: 'convert-types', label: 'Convert Types', icon: <TypeConvertIcon className="w-5 h-5" /> },
         { id: 'outliers', label: 'Outliers', icon: <OutlierIcon className="w-5 h-5" /> },
+        { id: 'correlation', label: 'Correlation', icon: <CorrelationIcon className="w-5 h-5" /> },
         { id: 'general', label: 'General', icon: <WandIcon className="w-5 h-5" /> },
     ];
     
@@ -193,6 +333,9 @@ export const DataStudioPanel: React.FC<DataStudioPanelProps> = (props) => {
         <div className="mb-3 p-4 border border-gray-700 bg-gray-800/50 rounded-lg">
             <Tabs tabs={tabs} activeTab={activeTab} setActiveTab={(id) => setActiveTab(id as DataTool)} disabled={props.disabled} />
             <div className="pt-2">
+                {activeTab === 'profile' && (
+                    <DataProfileContent columns={props.columns} />
+                )}
                 {activeTab === 'missing-values' && (
                     <MissingValuesContent 
                         columns={props.columnsWithMissing}
@@ -217,6 +360,13 @@ export const DataStudioPanel: React.FC<DataStudioPanelProps> = (props) => {
                         strategies={props.outlierStrategies}
                         onStrategyChange={props.setOutlierStrategies}
                         onApply={props.handleApplyOutlierRemoval}
+                        disabled={props.disabled}
+                    />
+                )}
+                {activeTab === 'correlation' && (
+                    <CorrelationMatrixContent
+                        numericColumns={props.numericColumns}
+                        onAction={props.onAction}
                         disabled={props.disabled}
                     />
                 )}

@@ -43,7 +43,7 @@ export type ConversionStrategy = {
   onError: 'coerce' | 'remove' | '';
 };
 
-export type DataTool = 'missing-values' | 'convert-types' | 'outliers' | 'general';
+export type DataTool = 'profile' | 'missing-values' | 'convert-types' | 'outliers' | 'correlation' | 'general';
 
 export type ValidationIssue = {
   type: 'INCONSISTENT_ROW_LENGTH' | 'MIXED_DATA_TYPE';

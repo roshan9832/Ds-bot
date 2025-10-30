@@ -8,15 +8,69 @@ interface MessageProps {
 }
 
 const renderTextWithMarkdown = (text: string) => {
-    // Simple markdown for bold and code blocks
-    const boldRegex = /\*\*(.*?)\*\*/g;
-    const codeRegex = /`(.*?)`/g;
-    
-    let html = text.replace(/\n/g, '<br />'); // Handle newlines
-    html = html.replace(boldRegex, '<strong>$1</strong>');
-    html = html.replace(codeRegex, '<code class="bg-gray-900/50 text-indigo-300 px-1 py-0.5 rounded text-sm">$1</code>');
+    // Regex to find markdown table blocks
+    const tableRegex = /^((?:\|.*\|(?:\r\n|\n))+)/gm;
+    const parts = text.split(tableRegex);
 
-    return <p className="text-sm text-gray-200 leading-relaxed" dangerouslySetInnerHTML={{ __html: html }}></p>
+    const elements = parts.map((part, index) => {
+        if (!part) return null;
+
+        // Check if the part is a table by re-testing with the regex.
+        // The split operation can leave empty strings or newlines that we should ignore.
+        if (part.trim().startsWith('|') && part.includes('-') && tableRegex.test(''+part)) {
+            const rows = part.trim().split('\n');
+            if (rows.length < 2 || !rows[1].includes('-')) {
+                 // Not a valid table, render as plain text
+            } else {
+                const header = rows[0];
+                const bodyRows = rows.slice(2);
+
+                let tableHtml = '<div class="overflow-x-auto my-4 bg-gray-900/50 border border-gray-700 rounded-lg"><table class="w-full min-w-max text-left border-collapse">';
+                
+                const headers = header.split('|').slice(1, -1).map(h => h.trim());
+                tableHtml += '<thead><tr class="border-b-2 border-gray-600">';
+                headers.forEach(h => {
+                    tableHtml += `<th class="p-3 font-semibold text-xs text-gray-300 uppercase tracking-wider">${h}</th>`;
+                });
+                tableHtml += '</tr></thead><tbody>';
+                
+                bodyRows.forEach(row => {
+                    const cells = row.split('|').slice(1, -1).map(c => c.trim());
+                    tableHtml += '<tr class="border-b border-gray-700/50 hover:bg-gray-700/30 transition-colors">';
+                    cells.forEach(cell => {
+                        const num = parseFloat(cell);
+                        let cellClass = 'text-gray-300';
+                        if (cell === '1.00' || cell === '1') {
+                            cellClass = 'text-gray-500 italic';
+                        } else if (!isNaN(num)) {
+                            if (num >= 0.7) cellClass = 'text-green-400 font-semibold';
+                            else if (num <= -0.7) cellClass = 'text-red-400 font-semibold';
+                            else if (num >= 0.4 || num <= -0.4) cellClass = 'text-yellow-400';
+                        }
+                        tableHtml += `<td class="p-3 text-sm ${cellClass}">${cell}</td>`;
+                    });
+                    tableHtml += '</tr>';
+                });
+                
+                tableHtml += '</tbody></table></div>';
+                return <div key={index} dangerouslySetInnerHTML={{ __html: tableHtml }} />;
+            }
+        }
+        
+        // Process non-table text
+        if (!part.trim()) return null;
+        let html = part
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/\n/g, '<br />')
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/`(.*?)`/g, '<code class="bg-gray-900/50 text-indigo-300 px-1 py-0.5 rounded text-sm">$1</code>');
+        
+        return <p key={index} className="my-2" dangerouslySetInnerHTML={{ __html: html }} />;
+    });
+
+    return <div className="text-sm text-gray-200 leading-relaxed">{elements.filter(Boolean)}</div>;
 };
 
 
